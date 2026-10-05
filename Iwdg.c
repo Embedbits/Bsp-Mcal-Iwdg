@@ -846,7 +846,7 @@ static iwdg_RequestState_t Iwdg_Set_Prescaler( iwdg_Prescaler_t prescId )
  * \pre   Register write access shall be enabled and no reload value update may
  *        be in progress; otherwise \ref IWDG_REQUEST_ERROR and no register is changed.
  *
- * \param reloadVal [in]: Reload register value (0 - \ref IWDG_RLR_RL)
+ * \param reloadVal [in]: Reload register value (0 - \c IWDG_RLR_RL)
  *
  * \return Function processing state. Returns \ref IWDG_REQUEST_OK if request
  *         was processed without problems. Otherwise returns \ref IWDG_REQUEST_ERROR.
@@ -903,7 +903,7 @@ static iwdg_RequestState_t Iwdg_Set_Reload( uint32_t reloadVal )
  * \pre   Register write access shall be enabled and no early wakeup update may
  *        be in progress; otherwise \ref IWDG_REQUEST_ERROR and no register is changed.
  *
- * \param ewitVal  [in]: Early wakeup comparator value (0 - \ref IWDG_EWCR_EWIT)
+ * \param ewitVal  [in]: Early wakeup comparator value (0 - \c IWDG_EWCR_EWIT)
  * \param ewiState [in]: Early wakeup interrupt state, value from \ref iwdg_FunctionState_t
  *
  * \return Function processing state. Returns \ref IWDG_REQUEST_OK if request

@@ -1,4 +1,4 @@
-# Template version: 0.0.0
+# Template version: 0.0.1
 # Sets the version of CMakeLists.txt file.
 # Never, under any circumstances, change this line. It is used by
 # the module generation script to identify the template version.
@@ -18,7 +18,7 @@ set( Iwdg_PrivateIncludeDirs
 
 # Source files list for current library generation
 set( Iwdg_SourceFiles
-    Iwdg.c 
+    Iwdg.c
 )
 
 
@@ -80,10 +80,9 @@ target_include_directories( Iwdg_Lib
     PUBLIC
         $<BUILD_INTERFACE:${PUBLIC_HEADERS_DIR}>
         $<INSTALL_INTERFACE:include>
-        Iwdg_PublicIncludeDirs
+        ${Iwdg_PublicIncludeDirs}
     PRIVATE
-        ${Iwdg_IncludeDirs}
-        Iwdg_PrivateIncludeDirs
+        ${Iwdg_PrivateIncludeDirs}
 )
 
 

@@ -11,7 +11,7 @@
  * early wakeup interrupt.
  *
  * Tests expecting reset of the MCU use stages of the integration testing
- * (\ref IntegrationTesting_Set_ResetExpected), stage 1 checks the reset source
+ * (\c IntegrationTesting_Set_ResetExpected), stage 1 checks the reset source
  * through RCC module. Running watchdog is stopped by the system reset done by
  * the test runner after every test case.
  *
@@ -214,6 +214,7 @@ void It_Iwdg_Init_NoRefresh_ResetsMcuAfterTimeout( void )
 {
     if( 0u == IntegrationTesting_Get_Stage() )
     {
+        TEST_ASSERT_EQUAL( RCC_REQUEST_OK, Rcc_Set_ResetSourceClear() );
         IntegrationTesting_Set_ResetExpected();
         It_Iwdg_Init_Watchdog( IT_IWDG_TIMEOUT_MS, IWDG_TIME_UNUSED, IWDG_TIME_UNUSED );
 
@@ -293,6 +294,7 @@ void It_Iwdg_Deinit_AutoRefreshStopped_ResetsMcu( void )
 {
     if( 0u == IntegrationTesting_Get_Stage() )
     {
+        TEST_ASSERT_EQUAL( RCC_REQUEST_OK, Rcc_Set_ResetSourceClear() );
         IntegrationTesting_Set_ResetExpected();
         It_Iwdg_Init_Watchdog( IT_IWDG_TIMEOUT_MS, IWDG_TIME_UNUSED, IWDG_TIME_UNUSED );
 
@@ -328,6 +330,7 @@ void It_Iwdg_Set_Refresh_BeforeWindow_ResetsMcu( void )
 {
     if( 0u == IntegrationTesting_Get_Stage() )
     {
+        TEST_ASSERT_EQUAL( RCC_REQUEST_OK, Rcc_Set_ResetSourceClear() );
         IntegrationTesting_Set_ResetExpected();
 
         /* Refresh allowed only in the last 100 ms of 200 ms timeout */

@@ -1,4 +1,9 @@
 /**
+ * \defgroup Iwdg Iwdg
+ * \brief Iwdg module
+ */
+
+/**
  * \author Mr.Nobody
  * \file Iwdg_Types.h
  * \ingroup Iwdg
