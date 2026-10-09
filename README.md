@@ -101,6 +101,8 @@ Invalid configuration (timeout out of range, window or early wakeup not shorter 
 
 - **Window mode** - refresh before the window resets the MCU immediately (hardware behavior), it can not be reported by software. `Iwdg_Task()` does not refresh in window mode, the application has to call `Iwdg_Set_Refresh()` inside the window.
 - **Hardware watchdog mode** - if `Iwdg_Get_State()` returns `IWDG_FUNCTION_ACTIVE` before `Iwdg_Init()` after reset, the watchdog was started by the option bytes.
+- **Running state (STM32U5)** - STM32U5 IWDG has no running flag. The module reports the watchdog as running, if it was started by `Iwdg_Init()` since the last reset, or if the hardware watchdog mode is selected by the option bytes (`FLASH_OPTR.IWDG_SW` cleared).
+- **LSI prescaler (STM32U5)** - watchdog timing uses the LSI frequency reported by the RCC module (LSI divided by `RCC_BDCR.LSIPREDIV`, if the divider is selected).
 - **Reset cause** - IWDG reset can be detected after startup by `Rcc_Get_ResetSource( RCC_RESET_SRC_IWDG, &flag )` and cleared by `Rcc_Set_ResetSourceClear()` in the RCC module.
 - **Timeout accuracy** - LSI frequency varies with temperature and voltage (see datasheet), the real timeout differs from the calculated one accordingly.
 
