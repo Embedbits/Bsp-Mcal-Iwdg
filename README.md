@@ -4,7 +4,7 @@ This repository provides the **MCAL (Microcontroller Abstraction Layer)** driver
 It offers a simple and safe interface to start, configure and refresh the watchdog without dealing with prescalers, reload values or register update flags.
 
 Each STM32 family is supported in a **dedicated branch** of this repository:
-- `STM32G4`
+- `STM32H7`
 - `STM32U5`
 - `STM32L4`
 - `STM32H5`
@@ -16,16 +16,16 @@ Each STM32 family is supported in a **dedicated branch** of this repository:
 
 The **IWDG MCAL driver** abstracts the STM32 independent watchdog into a time-based interface.  
 The user configures the watchdog in **milliseconds**, the module does the rest:
-- Prescaler (4 - 1024) and reload value calculation from the required timeout and the LSI frequency  
+- Prescaler (4 - 256 on STM32H7, 4 - 1024 on STM32H7R / H7S) and reload value calculation from the required timeout and the LSI frequency  
 - Optional **window** - refresh is allowed only within the last part of the timeout  
-- Optional **early wakeup interrupt** - user callback called before the watchdog resets the MCU  
+- Optional **early wakeup interrupt** - user callback called before the watchdog resets the MCU (STM32H7R / H7S only, not available on STM32H72x / H74x / H7A3)  
 - Automatic refresh from `Iwdg_Task()` or manual refresh by `Iwdg_Set_Refresh()`  
 - Watchdog state and achieved timeout readout  
 
 Register write access (key register), register update flags and read-back verification of every configuration write are handled **internally** by the module.
 
 > ✅ The user **does not need to include or use** any additional modules such as RCC or NVIC drivers.  
-> LSI frequency is read from the RCC module and the early wakeup interrupt is configured through the NVIC module internally.
+> LSI frequency is read from the RCC module internally. STM32H72x / H74x / H7A3 IWDG has no interrupt (the NVIC module is not called), STM32H7R / H7S IWDG uses NVIC vector `NVIC_PERIPH_IRQ_IWDG` for the early wakeup interrupt.
 
 > ⚠️ Once started, the watchdog **can not be stopped** (hardware limitation). It is stopped only by a system reset,
 > unless the hardware watchdog mode is selected in the option bytes. `Iwdg_Deinit()` only disables the interrupt
@@ -89,16 +89,18 @@ Everything else — prescaler tables, helper functions, interrupt handler — is
 
 | Item | Description |
 |------|-------------|
-| `Timeout` | Required timeout in ms. With 32 kHz LSI the range is approx. 1 ms - 131 s. |
+| `Timeout` | Required timeout in ms. With 32 kHz LSI the range is approx. 1 ms - 32.7 s (STM32H7), 1 ms - 131 s (STM32H7R / H7S). |
 | `Window` | Length of the window before timeout in ms, when refresh is allowed. `IWDG_TIME_UNUSED` disables the window. Must be shorter than `Timeout`. |
-| `EarlyWakeup` | Time before timeout in ms, when the early wakeup interrupt is triggered. `IWDG_TIME_UNUSED` disables the interrupt. Must be shorter than `Timeout`. |
-| `EarlyWakeupIsr` | User callback of the early wakeup interrupt, can be `NULL` |
-| `IrqPriority` | Early wakeup interrupt priority (0 - highest) |
+| `EarlyWakeup` | Early wakeup time before timeout in ms (STM32H7R / H7S), `IWDG_TIME_UNUSED` if not used. Not supported by STM32H72x / H74x / H7A3 IWDG - must be `IWDG_TIME_UNUSED`. |
+| `EarlyWakeupIsr` | Early wakeup callback (STM32H7R / H7S), not used on STM32H72x / H74x / H7A3 |
+| `IrqPriority` | Early wakeup interrupt priority (STM32H7R / H7S), not used on STM32H72x / H74x / H7A3 |
 
-Invalid configuration (timeout out of range, window or early wakeup not shorter than timeout) is rejected by `Iwdg_Init()` **before** any register is written.
+Invalid configuration (timeout out of range, window not shorter than timeout, early wakeup used) is rejected by `Iwdg_Init()` **before** any register is written.
 
 ### Notes
 
+- **STM32H7 IWDG1** (Cortex-M7 core, IWDG2 of dual-core devices belongs to Cortex-M4) - registers KR, PR, RLR, SR and WINR: window, but no early wakeup interrupt and no watchdog running flag. The running state is kept by the module (started by `Iwdg_Init()` since the last reset) together with the hardware watchdog option byte (`IWDG1_SW`). `Iwdg_Init()` of a running watchdog applies the new timeout immediately (window register write reloads the counter after the register update, also with disabled window).
+- **STM32H7R / H7S IWDG** (Ral family STM32H7RS, like STM32H5) - additional early wakeup register EWCR and running flag SR.ONF, prescaler up to 1024: early wakeup interrupt is supported, the running state is read from ONF (start confirmed by ONF), `Iwdg_Deinit()` disables the interrupt in NVIC. PR[3:0] = 1xxx is read as divider 1024.
 - **Window mode** - refresh before the window resets the MCU immediately (hardware behavior), it can not be reported by software. `Iwdg_Task()` does not refresh in window mode, the application has to call `Iwdg_Set_Refresh()` inside the window.
 - **Hardware watchdog mode** - if `Iwdg_Get_State()` returns `IWDG_FUNCTION_ACTIVE` before `Iwdg_Init()` after reset, the watchdog was started by the option bytes.
 - **Reset cause** - IWDG reset can be detected after startup by `Rcc_Get_ResetSource( RCC_RESET_SRC_IWDG, &flag )` and cleared by `Rcc_Set_ResetSourceClear()` in the RCC module.
@@ -111,11 +113,6 @@ Invalid configuration (timeout out of range, window or early wakeup not shorter 
 ```c
 #include "Iwdg_Port.h"
 
-static void App_WatchdogWarning( void )
-{
-    // Last chance to store diagnostic data before the watchdog reset
-}
-
 int main(void)
 {
     iwdg_Config_t       iwdgConfig;
@@ -125,9 +122,6 @@ int main(void)
     iwdgState = Iwdg_Get_DefaultConfig( &iwdgConfig );
 
     iwdgConfig.Timeout        = 500u;   // Reset after 500 ms without refresh
-    iwdgConfig.EarlyWakeup    = 50u;    // Callback 50 ms before reset
-    iwdgConfig.EarlyWakeupIsr = App_WatchdogWarning;
-    iwdgConfig.IrqPriority    = 0u;
 
     if( IWDG_REQUEST_OK == iwdgState )
     {
@@ -155,10 +149,11 @@ Each STM32 family has its own branch:
 
 | Branch | Description |
 |--------|--------------|
-| `STM32G4` | MCAL driver for STM32G4 family |
+| `STM32H7` | MCAL driver for STM32H7 family |
 | `STM32U5` | MCAL driver for STM32U5 family |
 | `STM32L4` | MCAL driver for STM32L4 family |
 | `STM32H5` | MCAL driver for STM32H5 family |
+| `STM32F4` | MCAL driver for STM32F4 family |
 
 These branches contain family-specific register definitions, prescaler ranges and RCC/NVIC bindings while maintaining a common interface.
 
@@ -167,10 +162,9 @@ These branches contain family-specific register definitions, prescaler ranges an
 ## 🧩 Dependencies
 
 - **Rcc_Lib** – LSI clock frequency (`RCC_PERIPH_IWDG`)
-- **Nvic_Lib** – Early wakeup interrupt handling
 - **RAL (Register Abstraction Layer)** – Used internally to access low-level registers  
 
-All mandatory RCC and NVIC configurations are handled internally.
+All mandatory RCC configurations are handled internally.
 
 ---
 
