@@ -67,6 +67,10 @@ static iwdg_RequestState_t  Iwdg_Set_Reload          ( uint32_t reloadVal );
 /** Maximal number of watchdog counter ticks (reload register width) */
 #define IWDG_TICKS_MAX                  ( IWDG_RLR_RL + IWDG_COUNTER_OFFSET )
 
+/** Prescaler register value PR[2:0] = 111 selects divider 256 as well (reference manual),
+ *  the module writes \c LL_IWDG_PRESCALER_256 (110) only */
+#define IWDG_PRESCALER_256_ALIAS        ( IWDG_PR_PR )
+
 /** LL flag / state function return value signaling active state */
 #define IWDG_LL_STATE_ACTIVE            ( 1u )
 
@@ -359,7 +363,8 @@ iwdg_RequestState_t Iwdg_Get_State( iwdg_FunctionState_t * const state )
  * \brief Returns configured watchdog timeout.
  *
  * Timeout is calculated from prescaler and reload registers and LSI frequency
- * provided by RCC module (rounded to the nearest ms).
+ * provided by RCC module (rounded to the nearest ms). Prescaler register value
+ * PR[2:0] = 111 (written e.g. by bootloader) selects divider 256 as 110.
  *
  * \pre   No register update may be in progress (SR update flags cleared within
  *        timeout); otherwise \ref IWDG_REQUEST_ERROR.
@@ -404,6 +409,16 @@ iwdg_RequestState_t Iwdg_Get_Timeout( iwdg_Time_ms_t * const timeout )
                 {
                     /* Continue with next prescaler */
                 }
+            }
+
+            if( IWDG_PRESCALER_256_ALIAS == prescReg )
+            {
+                /* Second register value of divider 256 */
+                prescId = IWDG_PRESCALER_DIV_256;
+            }
+            else
+            {
+                /* Prescaler identified by LUT search (or unknown) */
             }
 
             if( IWDG_PRESCALER_CNT > prescId )
