@@ -73,6 +73,10 @@ static void                Iwdg_IsrHandler          ( void );
 /** Early wakeup comparator value used when early wakeup interrupt is not used */
 #define IWDG_EWIT_DISABLED              ( 0u )
 
+/** Highest prescaler register value PR[3:0] = 1111. Values 1001 .. 1111 select divider
+ *  1024 as 1000 (reference manual "Others"), the module writes \c LL_IWDG_PRESCALER_1024 only */
+#define IWDG_PRESCALER_1024_ALIAS_MAX   ( IWDG_PR_PR )
+
 /** LL flag / state function return value signaling active state */
 #define IWDG_LL_STATE_ACTIVE            ( 1u )
 
@@ -438,7 +442,8 @@ iwdg_RequestState_t Iwdg_Get_State( iwdg_FunctionState_t * const state )
  * \brief Returns configured watchdog timeout.
  *
  * Timeout is calculated from prescaler and reload registers and LSI frequency
- * provided by RCC module (rounded to the nearest ms).
+ * provided by RCC module (rounded to the nearest ms). Prescaler register values
+ * PR[3:0] = 1001 .. 1111 (written e.g. by bootloader) select divider 1024 as 1000.
  *
  * \pre   No register update may be in progress (SR update flags cleared within
  *        timeout); otherwise \ref IWDG_REQUEST_ERROR.
@@ -483,6 +488,17 @@ iwdg_RequestState_t Iwdg_Get_Timeout( iwdg_Time_ms_t * const timeout )
                 {
                     /* Continue with next prescaler */
                 }
+            }
+
+            if( ( LL_IWDG_PRESCALER_1024        < prescReg ) &&
+                ( IWDG_PRESCALER_1024_ALIAS_MAX >= prescReg )    )
+            {
+                /* Other register values of divider 1024 */
+                prescId = IWDG_PRESCALER_DIV_1024;
+            }
+            else
+            {
+                /* Prescaler identified by LUT search (or unknown) */
             }
 
             if( IWDG_PRESCALER_CNT > prescId )

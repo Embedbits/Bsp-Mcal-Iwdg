@@ -471,6 +471,54 @@ void Ut_Iwdg_Get_Timeout_CalculatesFromRegisters( void )
 
 
 /**
+ * \brief   Iwdg_Get_Timeout() handles other register values of prescaler 1024.
+ *
+ * \details Presets PR = 1001 .. 1111 one after another (divider 1024 as 1000,
+ *          reference manual "Others"), RLR = maximum, LSI 32 kHz.
+ *
+ * \par Expected results
+ * - IWDG_REQUEST_OK, timeout 131072 ms for every register value.
+ */
+void Ut_Iwdg_Get_Timeout_PrescalerRegAlias_UsesDivider1024( void )
+{
+    for( uint32_t prescReg = LL_IWDG_PRESCALER_1024 + 1u; IWDG_PR_PR >= prescReg; prescReg++ )
+    {
+        iwdg_Time_ms_t timeout = 0u;
+
+        IWDG->PR  = prescReg;
+        IWDG->RLR = IWDG_RLR_RL;
+
+        Ut_Iwdg_Expect_LsiClk( UT_IWDG_LSI_HZ );
+
+        TEST_ASSERT_EQUAL_MESSAGE( IWDG_REQUEST_OK, Iwdg_Get_Timeout( &timeout ), "Prescaler register alias value" );
+        TEST_ASSERT_EQUAL_UINT32_MESSAGE( UT_IWDG_TIMEOUT_MAX_MS, timeout, "Prescaler register alias value" );
+    }
+}
+
+
+/**
+ * \brief   Iwdg_Get_Timeout() rejects unknown prescaler register value.
+ *
+ * \details Presets PR = 16 (outside PR[3:0], possible only in emulated register).
+ *
+ * \par Expected results
+ * - IWDG_REQUEST_ERROR is returned, timeout not changed.
+ */
+void Ut_Iwdg_Get_Timeout_UnknownPrescalerReg_ReturnsError( void )
+{
+    iwdg_Time_ms_t timeout = UT_IWDG_TIMEOUT_MS;
+
+    IWDG->PR  = IWDG_PR_PR + 1u;
+    IWDG->RLR = UT_IWDG_TIMEOUT_RELOAD;
+
+    Ut_Iwdg_Expect_LsiClk( UT_IWDG_LSI_HZ );
+
+    TEST_ASSERT_EQUAL( IWDG_REQUEST_ERROR, Iwdg_Get_Timeout( &timeout ) );
+    TEST_ASSERT_EQUAL_UINT32( UT_IWDG_TIMEOUT_MS, timeout );
+}
+
+
+/**
  * \brief   Iwdg_Get_Timeout() rejects read during reload update.
  *
  * \details Presets SR.RVU (reload value update in progress).
