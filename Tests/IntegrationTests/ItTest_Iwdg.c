@@ -61,6 +61,13 @@ static void             It_Iwdg_EarlyWakeupCallback( void );
 /** Time without refresh after which the reset must have occurred [ms] */
 #define IT_IWDG_RESET_WAIT_MS               ( 1000u )
 
+/** Highest core clock of the STM32U5 family [kHz] - a wait loop takes at least one core clock cycle */
+#define IT_IWDG_CORE_MAX_KHZ                ( 160000u )
+
+/** Bound of the loops waiting for the reference time or the early wakeup - never ends a wait of
+ *  \ref IT_IWDG_RESET_WAIT_MS earlier than the time condition */
+#define IT_IWDG_WAIT_LOOPS                  ( IT_IWDG_RESET_WAIT_MS * IT_IWDG_CORE_MAX_KHZ )
+
 /** Relative tolerance of watchdog times (LSI accuracy, register synchronization) [%] */
 #define IT_IWDG_TIME_TOL_PCT                ( 20u )
 
@@ -216,7 +223,9 @@ void It_Iwdg_Init_WindowNotShorterThanTimeout_ReturnsErrorNotStarted( void )
  */
 void It_Iwdg_Init_NoRefresh_ResetsMcuAfterTimeout( void )
 {
-    if( 0u == IntegrationTesting_Get_Stage() )
+    const integrationTesting_Stage_t stage = IntegrationTesting_Get_Stage();
+
+    if( 0u == stage )
     {
         TEST_ASSERT_EQUAL( RCC_REQUEST_OK, Rcc_Set_ResetSourceClear() );
         IntegrationTesting_Set_ResetExpected();
@@ -296,7 +305,9 @@ void It_Iwdg_Set_Refresh_PeriodicCall_NoResetAfterTimeout( void )
  */
 void It_Iwdg_Deinit_AutoRefreshStopped_ResetsMcu( void )
 {
-    if( 0u == IntegrationTesting_Get_Stage() )
+    const integrationTesting_Stage_t stage = IntegrationTesting_Get_Stage();
+
+    if( 0u == stage )
     {
         TEST_ASSERT_EQUAL( RCC_REQUEST_OK, Rcc_Set_ResetSourceClear() );
         IntegrationTesting_Set_ResetExpected();
@@ -332,7 +343,9 @@ void It_Iwdg_Deinit_AutoRefreshStopped_ResetsMcu( void )
  */
 void It_Iwdg_Set_Refresh_BeforeWindow_ResetsMcu( void )
 {
-    if( 0u == IntegrationTesting_Get_Stage() )
+    const integrationTesting_Stage_t stage = IntegrationTesting_Get_Stage();
+
+    if( 0u == stage )
     {
         TEST_ASSERT_EQUAL( RCC_REQUEST_OK, Rcc_Set_ResetSourceClear() );
         IntegrationTesting_Set_ResetExpected();
@@ -399,10 +412,16 @@ void It_Iwdg_Init_EarlyWakeup_CallbackCalledBeforeTimeout( void )
     It_Iwdg_Init_Watchdog( 2u * IT_IWDG_TIMEOUT_MS, IWDG_TIME_UNUSED, IT_IWDG_TIMEOUT_MS / 2u );
 
     /* Callback refreshes the watchdog - no reset */
-    while( ( 0u                    == itIwdg_EarlyWakeupCnt ) &&
-           ( IT_IWDG_RESET_WAIT_MS >  It_Iwdg_Get_Time_ms() )    )
+    iwdg_Time_ms_t time_ms = It_Iwdg_Get_Time_ms();
+
+    for( uint32_t loopIdx = 0u;
+         ( IT_IWDG_WAIT_LOOPS    >  loopIdx               ) &&
+         ( 0u                    == itIwdg_EarlyWakeupCnt ) &&
+         ( IT_IWDG_RESET_WAIT_MS >  time_ms               );
+         loopIdx++ )
     {
         /* Wait for early wakeup interrupt */
+        time_ms = It_Iwdg_Get_Time_ms();
     }
 
     TEST_ASSERT_GREATER_OR_EQUAL_UINT32_MESSAGE( 1u, itIwdg_EarlyWakeupCnt, "Early wakeup callback not called" );
@@ -452,7 +471,12 @@ static iwdg_Time_ms_t It_Iwdg_Get_Time_ms( void )
  */
 static void It_Iwdg_Wait_Until_ms( iwdg_Time_ms_t time_ms, iwdg_FunctionState_t taskState )
 {
-    while( time_ms > It_Iwdg_Get_Time_ms() )
+    iwdg_Time_ms_t actTime_ms = It_Iwdg_Get_Time_ms();
+
+    for( uint32_t loopIdx = 0u;
+         ( IT_IWDG_WAIT_LOOPS >  loopIdx    ) &&
+         ( time_ms            >  actTime_ms );
+         loopIdx++ )
     {
         if( IWDG_FUNCTION_ACTIVE == taskState )
         {
@@ -462,6 +486,8 @@ static void It_Iwdg_Wait_Until_ms( iwdg_Time_ms_t time_ms, iwdg_FunctionState_t 
         {
             /* Watchdog is not refreshed */
         }
+
+        actTime_ms = It_Iwdg_Get_Time_ms();
     }
 }
 
