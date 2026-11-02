@@ -66,6 +66,10 @@ static void             It_Iwdg_Check_IwdgReset ( void );
 /** Number of milliseconds in one second */
 #define IT_IWDG_MS_IN_SECOND                ( 1000u )
 
+/** Loop bound of the wait for the reference time - far above the longest wait (1000 ms at 180 MHz is
+ *  180 M cycles, a pass takes at least 4 cycles), ends the wait only when the cycle counter does not run */
+#define IT_IWDG_WAIT_LOOPS                  ( 1000000000u )
+
 /* ============================== MACROS ==================================== */
 
 /** Absolute tolerance of watchdog time [ms] */
@@ -258,7 +262,9 @@ void It_Iwdg_Init_EarlyWakeupUsed_ReturnsErrorNotStarted( void )
  */
 void It_Iwdg_Init_NoRefresh_ResetsMcuAfterTimeout( void )
 {
-    if( 0u == IntegrationTesting_Get_Stage() )
+    const integrationTesting_Stage_t stage = IntegrationTesting_Get_Stage();
+
+    if( 0u == stage )
     {
         TEST_ASSERT_EQUAL( RCC_REQUEST_OK, Rcc_Set_ResetSourceClear() );
         IntegrationTesting_Set_ResetExpected();
@@ -294,9 +300,10 @@ void It_Iwdg_Init_NoRefresh_ResetsMcuAfterTimeout( void )
  */
 void It_Iwdg_Init_RunningWatchdog_NewTimeoutApplied( void )
 {
-    iwdg_Time_ms_t timeout = 0u;
+    iwdg_Time_ms_t                   timeout = 0u;
+    const integrationTesting_Stage_t stage   = IntegrationTesting_Get_Stage();
 
-    if( 0u == IntegrationTesting_Get_Stage() )
+    if( 0u == stage )
     {
         TEST_ASSERT_EQUAL( RCC_REQUEST_OK, Rcc_Set_ResetSourceClear() );
         IntegrationTesting_Set_ResetExpected();
@@ -384,7 +391,9 @@ void It_Iwdg_Set_Refresh_PeriodicCall_NoResetAfterTimeout( void )
  */
 void It_Iwdg_Deinit_AutoRefreshStopped_ResetsMcu( void )
 {
-    if( 0u == IntegrationTesting_Get_Stage() )
+    const integrationTesting_Stage_t stage = IntegrationTesting_Get_Stage();
+
+    if( 0u == stage )
     {
         TEST_ASSERT_EQUAL( RCC_REQUEST_OK, Rcc_Set_ResetSourceClear() );
         IntegrationTesting_Set_ResetExpected();
@@ -455,7 +464,12 @@ static iwdg_Time_ms_t It_Iwdg_Get_Time_ms( void )
  */
 static void It_Iwdg_Wait_Until_ms( iwdg_Time_ms_t time_ms, iwdg_FunctionState_t taskState )
 {
-    while( time_ms > It_Iwdg_Get_Time_ms() )
+    iwdg_Time_ms_t refTime_ms = It_Iwdg_Get_Time_ms();
+
+    for( uint32_t loopIdx = 0u;
+         ( IT_IWDG_WAIT_LOOPS > loopIdx ) &&
+         ( time_ms > refTime_ms );
+         loopIdx++ )
     {
         if( IWDG_FUNCTION_ACTIVE == taskState )
         {
@@ -465,6 +479,8 @@ static void It_Iwdg_Wait_Until_ms( iwdg_Time_ms_t time_ms, iwdg_FunctionState_t 
         {
             /* Watchdog is not refreshed */
         }
+
+        refTime_ms = It_Iwdg_Get_Time_ms();
     }
 }
 
