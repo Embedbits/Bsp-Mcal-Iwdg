@@ -172,7 +172,9 @@ iwdg_ModuleVersion_t Iwdg_Get_ModuleVersion( void )
  *
  * Prescaler and reload value are calculated from required timeout and LSI
  * frequency (smallest prescaler with the best resolution is used). Achieved
- * timeout can be read by \ref Iwdg_Get_Timeout. Register configuration follows
+ * timeout can be read by \ref Iwdg_Get_Timeout. LSI is started by the RCC module
+ * (\ref Rcc_Set_PeriphActive) before the calculation - the hardware starts it only
+ * with the watchdog. Register configuration follows
  * the reference manual sequence: start (LSI is enabled by HW), write access
  * enable, prescaler, reload, early wakeup comparator (STM32H7R / H7S), wait for
  * register update, window (writing window reloads the counter - new prescaler
@@ -223,11 +225,23 @@ iwdg_RequestState_t Iwdg_Init( iwdg_Config_t * const config )
         /*------------- Configuration calculation and validation -------------*/
         if( IWDG_REQUEST_OK == retState )
         {
-            retState = Iwdg_Get_LsiClk( &lsiClk );
+            /* LSI is started by HW only with the watchdog - its frequency is known while it runs (AB#2250) */
+            const rcc_RequestState_t rccState = Rcc_Set_PeriphActive( RCC_PERIPH_IWDG );
+
+            retState = ( RCC_REQUEST_OK == rccState ) ? IWDG_REQUEST_OK : IWDG_REQUEST_ERROR;
         }
         else
         {
             /* Early wakeup is not supported, keep error */
+        }
+
+        if( IWDG_REQUEST_OK == retState )
+        {
+            retState = Iwdg_Get_LsiClk( &lsiClk );
+        }
+        else
+        {
+            /* Early wakeup is not supported or LSI not started, keep error */
         }
 
         if( IWDG_REQUEST_OK == retState )

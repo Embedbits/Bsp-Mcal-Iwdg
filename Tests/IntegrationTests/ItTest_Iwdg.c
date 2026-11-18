@@ -50,6 +50,10 @@ static void             It_Iwdg_EarlyWakeupCallback( void );
 
 /* ========================= SYMBOLIC CONSTANTS ============================= */
 
+/** Minimal count of core clock cycles of one pass of a wait loop - the bound of the passes is the number of
+ *  core clock cycles of the wait, so the bound never ends the wait before the time is reached */
+#define IT_IWDG_MIN_CYCLES_PER_PASS         ( 1u )
+
 /** Watchdog timeout used by tests [ms] */
 #define IT_IWDG_TIMEOUT_MS                  ( 100u )
 
@@ -314,7 +318,9 @@ void It_Iwdg_Init_EarlyWakeup_CallbackCalledBeforeTimeout( void )
  */
 void It_Iwdg_Init_NoRefresh_ResetsMcuAfterTimeout( void )
 {
-    if( 0u == IntegrationTesting_Get_Stage() )
+    const integrationTesting_Stage_t testStage = IntegrationTesting_Get_Stage();
+
+    if( 0u == testStage )
     {
         TEST_ASSERT_EQUAL( RCC_REQUEST_OK, Rcc_Set_ResetSourceClear() );
         IntegrationTesting_Set_ResetExpected();
@@ -352,7 +358,9 @@ void It_Iwdg_Init_RunningWatchdog_NewTimeoutApplied( void )
 {
     iwdg_Time_ms_t timeout = 0u;
 
-    if( 0u == IntegrationTesting_Get_Stage() )
+    const integrationTesting_Stage_t testStage = IntegrationTesting_Get_Stage();
+
+    if( 0u == testStage )
     {
         TEST_ASSERT_EQUAL( RCC_REQUEST_OK, Rcc_Set_ResetSourceClear() );
         IntegrationTesting_Set_ResetExpected();
@@ -440,7 +448,9 @@ void It_Iwdg_Set_Refresh_PeriodicCall_NoResetAfterTimeout( void )
  */
 void It_Iwdg_Deinit_AutoRefreshStopped_ResetsMcu( void )
 {
-    if( 0u == IntegrationTesting_Get_Stage() )
+    const integrationTesting_Stage_t testStage = IntegrationTesting_Get_Stage();
+
+    if( 0u == testStage )
     {
         TEST_ASSERT_EQUAL( RCC_REQUEST_OK, Rcc_Set_ResetSourceClear() );
         IntegrationTesting_Set_ResetExpected();
@@ -476,7 +486,9 @@ void It_Iwdg_Deinit_AutoRefreshStopped_ResetsMcu( void )
  */
 void It_Iwdg_Set_Refresh_BeforeWindow_ResetsMcu( void )
 {
-    if( 0u == IntegrationTesting_Get_Stage() )
+    const integrationTesting_Stage_t testStage = IntegrationTesting_Get_Stage();
+
+    if( 0u == testStage )
     {
         TEST_ASSERT_EQUAL( RCC_REQUEST_OK, Rcc_Set_ResetSourceClear() );
         IntegrationTesting_Set_ResetExpected();
@@ -539,7 +551,9 @@ void It_Iwdg_Set_Refresh_InsideWindow_NoReset( void )
  */
 void It_Iwdg_Task_WithWindow_ResetsMcuAfterTimeout( void )
 {
-    if( 0u == IntegrationTesting_Get_Stage() )
+    const integrationTesting_Stage_t testStage = IntegrationTesting_Get_Stage();
+
+    if( 0u == testStage )
     {
         TEST_ASSERT_EQUAL( RCC_REQUEST_OK, Rcc_Set_ResetSourceClear() );
         IntegrationTesting_Set_ResetExpected();
@@ -639,7 +653,10 @@ static void It_Iwdg_Wait_Until_ms( iwdg_Time_ms_t time_ms, iwdg_FunctionState_t 
 {
     iwdg_Time_ms_t nowTime = It_Iwdg_Get_Time_ms();
 
-    while( time_ms > nowTime )
+    for( uint32_t loopIdx = 0u;
+         ( ( ( time_ms * itIwdg_CyclesPerMs ) / IT_IWDG_MIN_CYCLES_PER_PASS ) > loopIdx ) &&
+         ( time_ms > nowTime );
+         loopIdx++ )
     {
         if( IWDG_FUNCTION_ACTIVE == taskState )
         {

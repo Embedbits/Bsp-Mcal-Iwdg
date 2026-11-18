@@ -25,7 +25,7 @@ The user configures the watchdog in **milliseconds**, the module does the rest:
 Register write access (key register), register update flags and read-back verification of every configuration write are handled **internally** by the module.
 
 > ✅ The user **does not need to include or use** any additional modules such as RCC or NVIC drivers.  
-> LSI frequency is read from the RCC module internally. STM32H72x / H74x / H7A3 IWDG has no interrupt (the NVIC module is not called), STM32H7R / H7S IWDG uses NVIC vector `NVIC_PERIPH_IRQ_IWDG` for the early wakeup interrupt.
+> LSI is started and its frequency is read by the RCC module internally (`Iwdg_Init()`). STM32H72x / H74x / H7A3 IWDG has no interrupt (the NVIC module is not called), STM32H7R / H7S IWDG uses NVIC vector `NVIC_PERIPH_IRQ_IWDG` for the early wakeup interrupt.
 
 > ⚠️ Once started, the watchdog **can not be stopped** (hardware limitation). It is stopped only by a system reset,
 > unless the hardware watchdog mode is selected in the option bytes. `Iwdg_Deinit()` only disables the interrupt
@@ -161,7 +161,7 @@ These branches contain family-specific register definitions, prescaler ranges an
 
 ## 🧩 Dependencies
 
-- **Rcc_Lib** – LSI clock frequency (`RCC_PERIPH_IWDG`)
+- **Rcc_Lib** – LSI start and clock frequency (`RCC_PERIPH_IWDG`)
 - **RAL (Register Abstraction Layer)** – Used internally to access low-level registers  
 
 All mandatory RCC configurations are handled internally.

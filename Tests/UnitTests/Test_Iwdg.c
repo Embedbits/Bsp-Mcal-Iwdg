@@ -41,6 +41,7 @@
 static nvic_RequestState_t  Ut_Iwdg_NvicSetHandlerStub  ( nvic_PeriphIrqList_t irqId, const nvic_IsrCallback_t irqHandler, int callCnt );
 static void                 Ut_Iwdg_EarlyWakeupCallback ( void );
 static void                 Ut_Iwdg_Expect_Start        ( void );
+static void                 Ut_Iwdg_Expect_LsiStart     ( void );
 static void                 Ut_Iwdg_Expect_LsiClk       ( rcc_FreqHz_t lsiClk );
 static iwdg_Config_t        Ut_Iwdg_Get_Config          ( iwdg_Time_ms_t timeout, iwdg_Time_ms_t window, iwdg_Time_ms_t earlyWakeup );
 static void                 Ut_Iwdg_Init_Started        ( iwdg_Time_ms_t timeout );
@@ -294,6 +295,7 @@ void Ut_Iwdg_Init_TimeoutNotAchievable_ReturnsErrorWithoutAccess( void )
     iwdg_Config_t        config = Ut_Iwdg_Get_Config( UT_IWDG_TIMEOUT_MAX_MS + 100u, IWDG_TIME_UNUSED, IWDG_TIME_UNUSED );
     iwdg_FunctionState_t state  = IWDG_FUNCTION_ACTIVE;
 
+    Ut_Iwdg_Expect_LsiStart();
     Ut_Iwdg_Expect_LsiClk( UT_IWDG_LSI_HZ );
 
     TEST_ASSERT_EQUAL( IWDG_REQUEST_ERROR, Iwdg_Init( &config ) );
@@ -319,6 +321,7 @@ void Ut_Iwdg_Init_ZeroTimeout_ReturnsError( void )
 {
     iwdg_Config_t config = Ut_Iwdg_Get_Config( IWDG_TIME_UNUSED, IWDG_TIME_UNUSED, IWDG_TIME_UNUSED );
 
+    Ut_Iwdg_Expect_LsiStart();
     Ut_Iwdg_Expect_LsiClk( UT_IWDG_LSI_HZ );
 
     TEST_ASSERT_EQUAL( IWDG_REQUEST_ERROR, Iwdg_Init( &config ) );
@@ -338,6 +341,7 @@ void Ut_Iwdg_Init_WindowNotShorterThanTimeout_ReturnsErrorWithoutAccess( void )
 {
     iwdg_Config_t config = Ut_Iwdg_Get_Config( UT_IWDG_TIMEOUT_MS, UT_IWDG_TIMEOUT_MS, IWDG_TIME_UNUSED );
 
+    Ut_Iwdg_Expect_LsiStart();
     Ut_Iwdg_Expect_LsiClk( UT_IWDG_LSI_HZ );
 
     TEST_ASSERT_EQUAL( IWDG_REQUEST_ERROR, Iwdg_Init( &config ) );
@@ -363,6 +367,7 @@ void Ut_Iwdg_Init_WindowTooShort_ReturnsErrorWithoutAccess( void )
 {
     iwdg_Config_t config = Ut_Iwdg_Get_Config( UT_IWDG_TIMEOUT_MAX_MS, 1u, IWDG_TIME_UNUSED );
 
+    Ut_Iwdg_Expect_LsiStart();
     Ut_Iwdg_Expect_LsiClk( UT_IWDG_LSI_HZ );
 
     TEST_ASSERT_EQUAL( IWDG_REQUEST_ERROR, Iwdg_Init( &config ) );
@@ -407,7 +412,27 @@ void Ut_Iwdg_Init_LsiNotAvailable_ReturnsErrorWithoutAccess( void )
 {
     iwdg_Config_t config = Ut_Iwdg_Get_Config( UT_IWDG_TIMEOUT_MS, IWDG_TIME_UNUSED, IWDG_TIME_UNUSED );
 
+    Ut_Iwdg_Expect_LsiStart();
     Ut_Iwdg_Expect_LsiClk( 0u );     /* LSI not running */
+
+    TEST_ASSERT_EQUAL( IWDG_REQUEST_ERROR, Iwdg_Init( &config ) );
+    TEST_ASSERT_EQUAL_HEX32( UT_IWDG_KEY_NONE, UT_IWDG_INST->KR );
+}
+
+
+/**
+ * \brief   Iwdg_Init() reports error of LSI start.
+ *
+ * \details Rcc_Set_PeriphActive() returns error (AB#2250).
+ *
+ * \par Expected results
+ * - IWDG_REQUEST_ERROR, LSI frequency not read, watchdog not started.
+ */
+void Ut_Iwdg_Init_LsiStartError_ReturnsErrorWithoutAccess( void )
+{
+    iwdg_Config_t config = Ut_Iwdg_Get_Config( UT_IWDG_TIMEOUT_MS, IWDG_TIME_UNUSED, IWDG_TIME_UNUSED );
+
+    Rcc_Set_PeriphActive_ExpectAndReturn( RCC_PERIPH_IWDG, RCC_REQUEST_ERROR );
 
     TEST_ASSERT_EQUAL( IWDG_REQUEST_ERROR, Iwdg_Init( &config ) );
     TEST_ASSERT_EQUAL_HEX32( UT_IWDG_KEY_NONE, UT_IWDG_INST->KR );
@@ -426,6 +451,7 @@ void Ut_Iwdg_Init_RccError_ReturnsError( void )
 {
     iwdg_Config_t config = Ut_Iwdg_Get_Config( UT_IWDG_TIMEOUT_MS, IWDG_TIME_UNUSED, IWDG_TIME_UNUSED );
 
+    Ut_Iwdg_Expect_LsiStart();
     Rcc_Get_PeriphClk_ExpectAndReturn( RCC_PERIPH_IWDG, NULL, RCC_REQUEST_ERROR );
     Rcc_Get_PeriphClk_IgnoreArg_periphClk();
 
@@ -619,6 +645,7 @@ void Ut_Iwdg_Init_TimeoutOnly_ConfiguresPrescalerAndReload( void )
     config.EarlyWakeupIsr = NULL;   /* Default configuration of not used items */
     config.IrqPriority    = 0u;
 
+    Ut_Iwdg_Expect_LsiStart();
     Ut_Iwdg_Expect_LsiClk( UT_IWDG_LSI_HZ );
     Ut_Iwdg_Expect_Start();
 
@@ -647,6 +674,7 @@ void Ut_Iwdg_Init_CallbackWithoutEarlyWakeup_Ignored( void )
 {
     iwdg_Config_t config = Ut_Iwdg_Get_Config( UT_IWDG_TIMEOUT_MS, IWDG_TIME_UNUSED, IWDG_TIME_UNUSED );
 
+    Ut_Iwdg_Expect_LsiStart();
     Ut_Iwdg_Expect_LsiClk( UT_IWDG_LSI_HZ );
     Ut_Iwdg_Expect_Start();
 
@@ -707,6 +735,7 @@ void Ut_Iwdg_Init_PrescalerUpdateInProgress_ReturnsErrorWithoutWrite( void )
 
     UT_IWDG_INST->SR = IWDG_SR_PVU | UT_IWDG_SR_RUNNING;   /* Previous prescaler update never finishes */
 
+    Ut_Iwdg_Expect_LsiStart();
     Ut_Iwdg_Expect_LsiClk( UT_IWDG_LSI_HZ );
     Ut_Iwdg_Expect_Start();
 
@@ -740,6 +769,7 @@ void Ut_Iwdg_Init_WindowUpdateInProgress_ReturnsErrorWithoutWrite( void )
 
     UT_IWDG_INST->SR = IWDG_SR_WVU | UT_IWDG_SR_RUNNING;   /* Previous window update never finishes */
 
+    Ut_Iwdg_Expect_LsiStart();
     Ut_Iwdg_Expect_LsiClk( UT_IWDG_LSI_HZ );
     Ut_Iwdg_Expect_Start();
 
@@ -937,6 +967,7 @@ void Ut_Iwdg_Init_WindowAndEarlyWakeup_ConfiguresAllRegisters( void )
 
     UT_IWDG_INST->SR = IWDG_SR_ONF;
 
+    Ut_Iwdg_Expect_LsiStart();
     Ut_Iwdg_Expect_LsiClk( UT_IWDG_LSI_HZ );
     Nvic_Set_PeriphIrq_Inactive_ExpectAndReturn( NVIC_PERIPH_IRQ_IWDG, NVIC_REQUEST_OK );
     Nvic_Set_PeriphIrq_Prio_ExpectAndReturn( NVIC_PERIPH_IRQ_IWDG, UT_IWDG_IRQ_PRIO, NVIC_REQUEST_OK );
@@ -968,6 +999,7 @@ void Ut_Iwdg_Init_EarlyWakeupNotShorterThanTimeout_ReturnsError( void )
 #if defined(IWDG_EWCR_EWIT)
     iwdg_Config_t config = Ut_Iwdg_Get_Config( UT_IWDG_TIMEOUT_MS, IWDG_TIME_UNUSED, UT_IWDG_TIMEOUT_MS + 1u );
 
+    Ut_Iwdg_Expect_LsiStart();
     Ut_Iwdg_Expect_LsiClk( UT_IWDG_LSI_HZ );
 
     TEST_ASSERT_EQUAL( IWDG_REQUEST_ERROR, Iwdg_Init( &config ) );
@@ -993,6 +1025,7 @@ void Ut_Iwdg_Init_WatchdogNotStarted_ReturnsErrorWithoutConfig( void )
     iwdg_Config_t config = Ut_Iwdg_Get_Config( UT_IWDG_TIMEOUT_MS, IWDG_TIME_UNUSED, IWDG_TIME_UNUSED );
 
     /* SR.ONF stays 0 - start is not confirmed by HW */
+    Ut_Iwdg_Expect_LsiStart();
     Ut_Iwdg_Expect_LsiClk( UT_IWDG_LSI_HZ );
     Nvic_Set_PeriphIrq_Inactive_ExpectAndReturn( NVIC_PERIPH_IRQ_IWDG, NVIC_REQUEST_OK );
 
@@ -1023,6 +1056,7 @@ void Ut_Iwdg_Init_NvicPrioError_ReturnsErrorWatchdogRunning( void )
 
     UT_IWDG_INST->SR = IWDG_SR_ONF;
 
+    Ut_Iwdg_Expect_LsiStart();
     Ut_Iwdg_Expect_LsiClk( UT_IWDG_LSI_HZ );
     Nvic_Set_PeriphIrq_Inactive_ExpectAndReturn( NVIC_PERIPH_IRQ_IWDG, NVIC_REQUEST_OK );
     Nvic_Set_PeriphIrq_Prio_ExpectAndReturn( NVIC_PERIPH_IRQ_IWDG, UT_IWDG_IRQ_PRIO, NVIC_REQUEST_ERROR );
@@ -1076,6 +1110,7 @@ void Ut_Iwdg_Isr_EarlyWakeupFlag_ClearsFlagAndCallsCallback( void )
 
     UT_IWDG_INST->SR = IWDG_SR_ONF;
 
+    Ut_Iwdg_Expect_LsiStart();
     Ut_Iwdg_Expect_LsiClk( UT_IWDG_LSI_HZ );
     Nvic_Set_PeriphIrq_Inactive_ExpectAndReturn( NVIC_PERIPH_IRQ_IWDG, NVIC_REQUEST_OK );
     Nvic_Set_PeriphIrq_Prio_ExpectAndReturn( NVIC_PERIPH_IRQ_IWDG, UT_IWDG_IRQ_PRIO, NVIC_REQUEST_OK );
@@ -1111,6 +1146,7 @@ void Ut_Iwdg_Isr_NoFlag_DoesNotCallCallback( void )
 
     UT_IWDG_INST->SR = IWDG_SR_ONF;
 
+    Ut_Iwdg_Expect_LsiStart();
     Ut_Iwdg_Expect_LsiClk( UT_IWDG_LSI_HZ );
     Nvic_Set_PeriphIrq_Inactive_ExpectAndReturn( NVIC_PERIPH_IRQ_IWDG, NVIC_REQUEST_OK );
     Nvic_Set_PeriphIrq_Prio_ExpectAndReturn( NVIC_PERIPH_IRQ_IWDG, UT_IWDG_IRQ_PRIO, NVIC_REQUEST_OK );
@@ -1194,7 +1230,14 @@ static void Ut_Iwdg_Expect_Start( void )
 }
 
 
-/** Expects LSI frequency request to RCC module */
+/** Expects LSI start by RCC module */
+static void Ut_Iwdg_Expect_LsiStart( void )
+{
+    Rcc_Set_PeriphActive_ExpectAndReturn( RCC_PERIPH_IWDG, RCC_REQUEST_OK );
+}
+
+
+/** Expects LSI frequency read from RCC module */
 static void Ut_Iwdg_Expect_LsiClk( rcc_FreqHz_t lsiClk )
 {
     static rcc_FreqHz_t lsiClkRet;
@@ -1227,6 +1270,7 @@ static void Ut_Iwdg_Init_Started( iwdg_Time_ms_t timeout )
 {
     iwdg_Config_t config = Ut_Iwdg_Get_Config( timeout, IWDG_TIME_UNUSED, IWDG_TIME_UNUSED );
 
+    Ut_Iwdg_Expect_LsiStart();
     Ut_Iwdg_Expect_LsiClk( UT_IWDG_LSI_HZ );
     Ut_Iwdg_Expect_Start();
 
@@ -1239,6 +1283,7 @@ static void Ut_Iwdg_Init_Window( iwdg_Time_ms_t timeout, iwdg_Time_ms_t window )
 {
     iwdg_Config_t config = Ut_Iwdg_Get_Config( timeout, window, IWDG_TIME_UNUSED );
 
+    Ut_Iwdg_Expect_LsiStart();
     Ut_Iwdg_Expect_LsiClk( UT_IWDG_LSI_HZ );
     Ut_Iwdg_Expect_Start();
 

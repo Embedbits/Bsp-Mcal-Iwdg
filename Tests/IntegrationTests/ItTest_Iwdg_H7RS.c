@@ -28,6 +28,7 @@
 #include "Iwdg_Port.h"                      /* Module under test              */
 #include "Rcc_Port.h"                       /* Reset source                   */
 #include "Tim_Port.h"                       /* Reference time base            */
+#include "Stm32.h"                          /* SystemCoreClock                */
 /* ============================= TYPEDEFS =================================== */
 
 /* ======================= FORWARD DECLARATIONS ============================= */
@@ -50,6 +51,17 @@ static void             It_Iwdg_EarlyWakeupCallback( void );
 
 /** Reference timer counts per millisecond */
 #define IT_IWDG_REF_COUNTS_PER_MS           ( IT_IWDG_REF_FREQ_HZ / 1000u )
+
+/** Minimal count of core clock cycles of one pass of a wait loop - the bound of the passes is the number of
+ *  core clock cycles of the wait, so the bound never ends the wait before the time is reached */
+#define IT_IWDG_MIN_CYCLES_PER_PASS         ( 1u )
+
+/** Count of milliseconds in a second */
+#define IT_IWDG_MS_IN_SECOND                ( 1000u )
+
+/** Bound of the passes of a wait loop of the given time [ms] (core clock cycles of the wait) */
+#define IT_IWDG_WAIT_PASSES( time_ms )      ( ( ( time_ms ) * ( SystemCoreClock / IT_IWDG_MS_IN_SECOND ) ) / \
+                                              IT_IWDG_MIN_CYCLES_PER_PASS )
 
 /** Watchdog timeout used by tests [ms] */
 #define IT_IWDG_TIMEOUT_MS                  ( 100u )
@@ -212,7 +224,9 @@ void It_Iwdg_Init_WindowNotShorterThanTimeout_ReturnsErrorNotStarted( void )
  */
 void It_Iwdg_Init_NoRefresh_ResetsMcuAfterTimeout( void )
 {
-    if( 0u == IntegrationTesting_Get_Stage() )
+    const integrationTesting_Stage_t testStage = IntegrationTesting_Get_Stage();
+
+    if( 0u == testStage )
     {
         TEST_ASSERT_EQUAL( RCC_REQUEST_OK, Rcc_Set_ResetSourceClear() );
         IntegrationTesting_Set_ResetExpected();
@@ -292,7 +306,9 @@ void It_Iwdg_Set_Refresh_PeriodicCall_NoResetAfterTimeout( void )
  */
 void It_Iwdg_Deinit_AutoRefreshStopped_ResetsMcu( void )
 {
-    if( 0u == IntegrationTesting_Get_Stage() )
+    const integrationTesting_Stage_t testStage = IntegrationTesting_Get_Stage();
+
+    if( 0u == testStage )
     {
         TEST_ASSERT_EQUAL( RCC_REQUEST_OK, Rcc_Set_ResetSourceClear() );
         IntegrationTesting_Set_ResetExpected();
@@ -328,7 +344,9 @@ void It_Iwdg_Deinit_AutoRefreshStopped_ResetsMcu( void )
  */
 void It_Iwdg_Set_Refresh_BeforeWindow_ResetsMcu( void )
 {
-    if( 0u == IntegrationTesting_Get_Stage() )
+    const integrationTesting_Stage_t testStage = IntegrationTesting_Get_Stage();
+
+    if( 0u == testStage )
     {
         TEST_ASSERT_EQUAL( RCC_REQUEST_OK, Rcc_Set_ResetSourceClear() );
         IntegrationTesting_Set_ResetExpected();
@@ -397,8 +415,11 @@ void It_Iwdg_Init_EarlyWakeup_CallbackCalledBeforeTimeout( void )
     /* Callback refreshes the watchdog - no reset */
     iwdg_Time_ms_t waitTime = It_Iwdg_Get_Time_ms();
 
-    while( ( 0u                    == itIwdg_EarlyWakeupCnt ) &&
-           ( IT_IWDG_RESET_WAIT_MS >  waitTime              )    )
+    for( uint32_t loopIdx = 0u;
+         ( IT_IWDG_WAIT_PASSES( IT_IWDG_RESET_WAIT_MS ) > loopIdx ) &&
+         ( 0u                    == itIwdg_EarlyWakeupCnt )         &&
+         ( IT_IWDG_RESET_WAIT_MS >  waitTime              );
+         loopIdx++ )
     {
         /* Wait for early wakeup interrupt */
         waitTime = It_Iwdg_Get_Time_ms();
@@ -453,7 +474,10 @@ static void It_Iwdg_Wait_Until_ms( iwdg_Time_ms_t time_ms, iwdg_FunctionState_t 
 {
     iwdg_Time_ms_t refTime = It_Iwdg_Get_Time_ms();
 
-    while( time_ms > refTime )
+    for( uint32_t loopIdx = 0u;
+         ( IT_IWDG_WAIT_PASSES( time_ms ) > loopIdx ) &&
+         ( time_ms > refTime );
+         loopIdx++ )
     {
         if( IWDG_FUNCTION_ACTIVE == taskState )
         {
